@@ -1,0 +1,286 @@
+--// AIM ASSIST SYSTEM (FOR YOUR OWN FPS GAME)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- ================= UI =================
+local gui = Instance.new("ScreenGui")
+gui.Name = "AimAssistUI"
+gui.ResetOnSpawn = false -- ⭐ บรรทัดนี้ทำให้ตายแล้ว UI ไม่หาย
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 220, 0, 200)
+frame.Position = UDim2.new(0, 20, 0.5, -100)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BorderSizePixel = 0
+-- ================= RGB BORDER =================
+local stroke = Instance.new("UIStroke", frame)
+stroke.Thickness = 3
+
+local hue = 0
+
+RunService.RenderStepped:Connect(function()
+	hue += 0.005
+	if hue > 1 then
+		hue = 0
+	end
+	
+	stroke.Color = Color3.fromHSV(hue, 1, 1)
+end)
+
+local toggle = Instance.new("TextButton", frame)
+toggle.Size = UDim2.new(0.9, 0, 0, 40)
+toggle.Position = UDim2.new(0.05, 0, 0.05, 0)
+toggle.Text = "เขียนด้านจำนวนด้านล่างเเล้วกดเปิด"
+toggle.BackgroundColor3 = Color3.fromRGB(200,50,50)
+toggle.TextColor3 = Color3.new(1,1,1)
+
+local strengthBox = Instance.new("TextBox", frame)
+strengthBox.Size = UDim2.new(0.9, 0, 0, 30)
+strengthBox.Position = UDim2.new(0.05, 0, 0.3, 0)
+strengthBox.PlaceholderText = "Strength (0.05 - 1)"
+strengthBox.Text = "ล็อกหัว เเนะนำ 0.2 ถึง 0.5"
+
+local fovBox = Instance.new("TextBox", frame)
+fovBox.Size = UDim2.new(0.9, 0, 0, 30)
+fovBox.Position = UDim2.new(0.05, 0, 0.5, 0)
+fovBox.PlaceholderText = "FOV Size (5 - 400)"
+fovBox.Text = "วง FOV เเนะนำ 50"
+-- ================= WARNING TEXT =================
+local warning = Instance.new("TextLabel", frame)
+warning.Size = UDim2.new(0.9, 0, 0, 30)
+warning.Position = UDim2.new(0.05, 0, 0.88, 0) -- 🔥 ล่างสุดของ frame
+warning.BackgroundTransparency = 1
+warning.Text = "⚠ เจ้าของ IG: ezmxxyxii"
+warning.TextScaled = true
+warning.Font = Enum.Font.GothamBold
+
+-- 🌈 RGB TEXT EFFECT
+local textHue = 0
+
+RunService.RenderStepped:Connect(function()
+	textHue += 0.005
+	if textHue > 1 then
+		textHue = 0
+	end
+	
+	warning.TextColor3 = Color3.fromHSV(textHue, 1, 1)
+end)
+
+-- ================= DRAG SYSTEM (PC + MOBILE) =================
+
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	frame.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+end
+
+frame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 
+	or input.UserInputType == Enum.UserInputType.Touch then
+		
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+frame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+
+
+-- ================= FOV CIRCLE =================
+
+local circle = Drawing.new("Circle")
+circle.Visible = true
+circle.Color = Color3.fromRGB(255,0,0)
+circle.Thickness = 2
+circle.Filled = false
+circle.Radius = 150
+
+-- ================= SETTINGS =================
+
+local enabled = false
+local strength = 0.2
+local fov = 150
+
+toggle.MouseButton1Click:Connect(function()
+	enabled = not enabled
+	
+	if enabled then
+		toggle.Text = "กดปิดไอโง่: ON"
+		toggle.BackgroundColor3 = Color3.fromRGB(50,200,50)
+	else
+		toggle.Text = "กดเปิดไอโง่: OFF"
+		toggle.BackgroundColor3 = Color3.fromRGB(200,50,50)
+	end
+end)
+
+strengthBox.FocusLost:Connect(function()
+	local val = tonumber(strengthBox.Text)
+	if val then
+		strength = math.clamp(val, 0.05, 1)
+	end
+end)
+
+fovBox.FocusLost:Connect(function()
+	local val = tonumber(fovBox.Text)
+	if val then
+		fov = math.clamp(val, 5, 400)
+		circle.Radius = fov
+	end
+end)
+
+-- ================= TARGET FIND =================
+local function isVisible(targetPart)
+    local origin = camera.CFrame.Position
+    local direction = targetPart.Position - origin
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {player.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.IgnoreWater = true
+
+    local result = workspace:Raycast(origin, direction, rayParams)
+
+    if result then
+        -- ถ้า ray ชน object ที่เป็นส่วนของ target แปลว่ามองเห็น
+        return result.Instance:IsDescendantOf(targetPart.Parent)
+    end
+
+    return false
+end
+
+local function getClosestTarget()
+	local closest = nil
+	local shortest = fov
+
+	for _, npc in pairs(workspace:GetChildren()) do
+		if npc:FindFirstChild("Humanoid") and npc ~= player.Character then
+			local head = npc:FindFirstChild("Head")
+			if head and isVisible(head) then
+				local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+				if onScreen then
+					local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)).Magnitude
+					if dist < shortest then
+						shortest = dist
+						closest = head
+					end
+				end
+			end
+		end
+	end
+	
+	return closest
+end
+
+-- ================= ESP SYSTEM =================
+
+local espEnabled = false
+local espObjects = {}
+
+-- ปุ่มเปิดปิด ESP
+local espToggle = Instance.new("TextButton", frame)
+espToggle.Size = UDim2.new(0.9, 0, 0, 40)
+espToggle.Position = UDim2.new(0.05, 0, 0.70, 0)
+espToggle.Text = "ESP ตัวรุ้งน่ะจ๊ะ: OFF"
+espToggle.BackgroundColor3 = Color3.fromRGB(200,50,50)
+espToggle.TextColor3 = Color3.new(1,1,1)
+
+espToggle.MouseButton1Click:Connect(function()
+	espEnabled = not espEnabled
+	
+	if espEnabled then
+		espToggle.Text = "ESP: ON"
+		espToggle.BackgroundColor3 = Color3.fromRGB(50,200,50)
+	else
+		espToggle.Text = "ESP: OFF"
+		espToggle.BackgroundColor3 = Color3.fromRGB(200,50,50)
+		
+		-- ลบ ESP ทั้งหมด
+		for _, v in pairs(espObjects) do
+			if v then v:Destroy() end
+		end
+		espObjects = {}
+	end
+end)
+
+-- ฟังก์ชั่นสร้าง ESP
+local function createESP(character)
+	if not character or espObjects[character] then return end
+	
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 0.5
+	highlight.OutlineTransparency = 0
+	highlight.Parent = character
+	
+	espObjects[character] = highlight
+end
+
+-- RGB Effect
+RunService.RenderStepped:Connect(function()
+	if not espEnabled then return end
+	
+	local hue = tick() % 5 / 5
+	
+	for _, npc in pairs(workspace:GetChildren()) do
+		if npc:FindFirstChild("Humanoid") and npc ~= player.Character then
+			
+			if not espObjects[npc] then
+				createESP(npc)
+			end
+			
+			local highlight = espObjects[npc]
+			if highlight then
+				local color = Color3.fromHSV(hue,1,1)
+				highlight.FillColor = color
+				highlight.OutlineColor = color
+			end
+		end
+	end
+end)
+-- ================= AIM LOGIC =================
+
+RunService.RenderStepped:Connect(function()
+	local center = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+	circle.Position = center
+	
+	if not enabled then return end
+	
+	local target = getClosestTarget()
+	if target then
+		local targetCF = CFrame.new(camera.CFrame.Position, target.Position)
+		camera.CFrame = camera.CFrame:Lerp(targetCF, strength)
+	end
+end)
