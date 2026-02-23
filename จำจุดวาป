@@ -1,0 +1,215 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+--// ลบของเก่า
+if player.PlayerGui:FindFirstChild("TeleportUI") then
+	player.PlayerGui.TeleportUI:Destroy()
+end
+
+--// GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "TeleportUI"
+gui.Parent = player.PlayerGui
+gui.ResetOnSpawn = false
+
+--// MAIN FRAME
+local main = Instance.new("Frame")
+main.Parent = gui
+main.Size = UDim2.new(0, 330, 0, 450)
+main.Position = UDim2.new(0.35, 0, 0.2, 0)
+main.BackgroundColor3 = Color3.fromRGB(20,20,30)
+main.Active = true
+main.Draggable = true
+main.BorderSizePixel = 0
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,20)
+
+--// TITLE BAR
+local titleBar = Instance.new("Frame", main)
+titleBar.Size = UDim2.new(1,0,0,45)
+titleBar.BackgroundTransparency = 1
+
+local title = Instance.new("TextLabel", titleBar)
+title.Size = UDim2.new(1,-50,1,0)
+title.Position = UDim2.new(0,10,0,0)
+title.BackgroundTransparency = 1
+title.Text = "📌 TELEPORT PANEL"
+title.TextColor3 = Color3.new(1,1,1)
+title.TextScaled = true
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local closeBtn = Instance.new("TextButton", titleBar)
+closeBtn.Size = UDim2.new(0,35,0,30)
+closeBtn.Position = UDim2.new(1,-40,0.5,-15)
+closeBtn.Text = "X"
+closeBtn.TextScaled = true
+closeBtn.BackgroundColor3 = Color3.fromRGB(170,50,50)
+closeBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", closeBtn)
+
+--// CONTAINER
+local container = Instance.new("Frame", main)
+container.Position = UDim2.new(0,0,0,50)
+container.Size = UDim2.new(1,0,1,-60)
+container.BackgroundTransparency = 1
+
+local layout = Instance.new("UIListLayout", container)
+layout.Padding = UDim.new(0,10)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+--// VARIABLES
+local savedPoints = {}
+local currentIndex = 1
+local autoLoop = false
+local speed = 2
+local locked = false
+
+-- FOLDER เก็บจุด
+local markerFolder = Instance.new("Folder")
+markerFolder.Name = "TeleportMarkers"
+markerFolder.Parent = workspace
+
+local markers = {}
+
+--// COUNTER
+local counter = Instance.new("TextLabel", container)
+counter.Size = UDim2.new(0.9,0,0,30)
+counter.BackgroundTransparency = 1
+counter.TextColor3 = Color3.new(1,1,1)
+counter.TextScaled = true
+counter.Text = "จำแล้ว 0 จุด"
+counter.LayoutOrder = 0
+
+-- ฟังก์ชันสร้างปุ่ม
+local function createButton(text, order)
+	local btn = Instance.new("TextButton", container)
+	btn.Size = UDim2.new(0.9,0,0,40)
+	btn.Text = text
+	btn.TextScaled = true
+	btn.BackgroundColor3 = Color3.fromRGB(60,60,90)
+	btn.LayoutOrder = order
+	Instance.new("UICorner", btn)
+	return btn
+end
+
+-- SAVE
+local saveBtn = createButton("จำจุดเซ็ต (0)",1)
+saveBtn.MouseButton1Click:Connect(function()
+	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		
+		local hrp = player.Character.HumanoidRootPart
+		table.insert(savedPoints, hrp.CFrame)
+		
+		local total = #savedPoints
+		counter.Text = "จำแล้ว "..total.." จุด"
+		saveBtn.Text = "จำจุดเซ็ต ("..total..")"
+		
+		-- สร้างลูกบอลสีฟ้า
+		local ball = Instance.new("Part")
+		ball.Shape = Enum.PartType.Ball
+		ball.Size = Vector3.new(2,2,2)
+		ball.Position = hrp.Position + Vector3.new(0,2,0)
+		ball.Anchored = true
+		ball.CanCollide = false
+		ball.Material = Enum.Material.Neon
+		ball.Color = Color3.fromRGB(0,170,255)
+		ball.Parent = markerFolder
+		
+		table.insert(markers, ball)
+	end
+end)
+-- TELEPORT NEXT
+local nextBtn = createButton("Teleport ไปจุดถัดไป",2)
+nextBtn.MouseButton1Click:Connect(function()
+	if #savedPoints > 0 then
+		currentIndex += 1
+		if currentIndex > #savedPoints then
+			currentIndex = 1
+		end
+		player.Character.HumanoidRootPart.CFrame = savedPoints[currentIndex]
+	end
+end)
+
+-- AUTO LOOP
+local loopBtn = createButton("Auto วนซ้ำๆ: OFF",3)
+loopBtn.MouseButton1Click:Connect(function()
+	autoLoop = not autoLoop
+	loopBtn.Text = "Auto วนซ้ำๆ: "..(autoLoop and "ON" or "OFF")
+
+	while autoLoop do
+		task.wait(speed)
+		if #savedPoints > 0 then
+			currentIndex += 1
+			if currentIndex > #savedPoints then
+				currentIndex = 1
+			end
+			player.Character.HumanoidRootPart.CFrame = savedPoints[currentIndex]
+		end
+	end
+end)
+
+-- SPEED BOX
+local speedBox = Instance.new("TextBox", container)
+speedBox.Size = UDim2.new(0.9,0,0,35)
+speedBox.Text = tostring(speed)
+speedBox.PlaceholderText = "ใส่ความเร็ว (วินาที)"
+speedBox.TextScaled = true
+speedBox.BackgroundColor3 = Color3.fromRGB(40,40,60)
+speedBox.LayoutOrder = 4
+Instance.new("UICorner", speedBox)
+
+speedBox.FocusLost:Connect(function()
+	local num = tonumber(speedBox.Text)
+	if num and num > 0 then
+		speed = num
+	else
+		speedBox.Text = tostring(speed)
+	end
+end)
+
+-- RESET
+local resetBtn = createButton("Reset ค่าทั้งหมด",5)
+resetBtn.MouseButton1Click:Connect(function()
+	savedPoints = {}
+	currentIndex = 1
+	
+	counter.Text = "จำแล้ว 0 จุด"
+	saveBtn.Text = "จำจุดเซ็ต (0)"
+	
+	for _,v in pairs(markers) do
+		v:Destroy()
+	end
+	
+	markers = {}
+end)
+
+-- LOCK
+local lockBtn = createButton("Lock UI: OFF",6)
+lockBtn.MouseButton1Click:Connect(function()
+	locked = not locked
+	main.Draggable = not locked
+	lockBtn.Text = "Lock UI: "..(locked and "ON" or "OFF")
+end)
+
+-- OPEN BUTTON
+local openBtn = Instance.new("TextButton", gui)
+openBtn.Size = UDim2.new(0,120,0,40)
+openBtn.Position = UDim2.new(0,20,0.5,0)
+openBtn.Text = "Open Teleport"
+openBtn.TextScaled = true
+openBtn.Visible = false
+openBtn.BackgroundColor3 = Color3.fromRGB(60,60,90)
+openBtn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", openBtn)
+
+-- ปิด / เปิด
+closeBtn.MouseButton1Click:Connect(function()
+	main.Visible = false
+	openBtn.Visible = true
+end)
+
+openBtn.MouseButton1Click:Connect(function()
+	main.Visible = true
+	openBtn.Visible = false
+end)
